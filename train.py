@@ -8,49 +8,101 @@ class DarkGAN:
 	"""docstring for ClassName"""
 	def __init__(self):
 		
-		self.GeneratorInput=tf.placeholder(tf.float32, [None, 512, 512, 4])#placeholder
+		"""
+		This is placeholder for the input for the Generator it is a4 channnel input
+		"""
+		self.GeneratorInput=tf.placeholder(tf.float32, [None, 512, 512, 4])
 		
-		self.DiscriminatorLabelsFake=tf.placeholder(tf.float32, [None, 1])#placeholder
-		self.DiscriminatorLabelsReal=tf.placeholder(tf.float32, [None, 1])#placeholder
-		self.GeneratorLabels=tf.placeholder(tf.float32, [None, 1])#placeholder
+		"""
+		The DiscriminatorLabelsFake is always an array of zeros expanded
+		of the same sized as batch size
 
-		self.RealImagePlaceholder=tf.placeholder(tf.float32, [None, 512, 512, 3])#
+		For the DiscriminatorLabelsReal are an array of ones expanded 
+		of the same sized as batch size
 
-		
+		The GeneratorLabels shall take the same labels as that of DiscriminatorRealLabels
+
+		The RealImagePlaceholder is for when we need to feed the target image for the discriminnator
+
+		"""
+		self.DiscriminatorLabelsFake=tf.placeholder(tf.float32, [None, 1])
+		self.DiscriminatorLabelsReal=tf.placeholder(tf.float32, [None, 1])
+		self.GeneratorLabels=tf.placeholder(tf.float32, [None, 1])
+
+		self.RealImagePlaceholder=tf.placeholder(tf.float32, [None, 512, 512, 3])
 		self.GeneratedImage=generator.network(self.GeneratorInput)
+
+		"""
+		The discriminator generates 2 outputs , the activation and the logits = sigmoid(activation) =P(Input=FakeImage)
+		This is generated for both when fake image is fed(logit expected to be 1),and realimage is fed(logit expected to be 0)
+
+		"""
+
 		self.DiscriminatorOutReal,self.DiscriminatorLogitsReal=discriminator.Discriminator(self.RealImagePlaceholder)
 		self.DiscriminatorOutFake,self.DiscriminatorLogitsFake=discriminator.Discriminator(self.GeneratedImage,reuse=True)
+
+		"""
+		As the target and the computation graph are different when the generated image is fed or the true target 
+		is, we compute 2 sigmoid crossentropy losses and the sum of both is the Final loss for the discriminnator
+
+		Discriminatorloss=SigLoss(P(Discriminator thinks True target is correct),logit=1)+SigLoss(P(Discriminator thinks Generated Image is correct),logit =0)
+		the first term is the RealLoss and the second term is FakeLoss
+
+		"""
 		
 		self.DiscriminatorRealLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorOutReal, labels=self.DiscriminatorLabelsReal))
 		self.DiscriminatorFakeLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorOutFake, labels=self.DiscriminatorLabelsFake))
 		self.DiscriminatorLoss=tf.reduce_mean(self.DiscriminatorRealLoss+self.DiscriminatorFakeLoss)
 		
-		self.GeneratorLoss=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.DiscriminatorLogitsFake, labels=self.GeneratorLabels))
+		"""
+		GeneratorLoss=SigLoss(P(Discriminator thinks Generated Image is correct),logit =1)
+
+		"""
+		self.GeneratorLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorLogitsFake, labels=self.GeneratorLabels))
 		
+
+		"""
+		This is for the user to observe how well with time is the model able to generate images simillar to the target
+		"""
 		self.GeneratorMSE=tf.losses.mean_squared_error(self.GeneratedImage,self.RealImagePlaceholder)
 
 		self.TrainableVars=tf.trainable_variables()
+
+		"""
+		d_vars are the weights of the discriminator as all of them is under the scope of "Discriminator"
+		This is necessary for allowing the optimizer to minimize the loss wrt discriminator weights
+
+		g_vars are the weights of the generator as all of them is under the scope of "Generator"
+		This is necessary for allowing the optimizer to minimize the loss wrt generator weights
+
+		"""
 		self.d_vars=[var for var in self.TrainableVars if 'Discriminator' in var.name]
 		self.g_vars=[var for var in self.TrainableVars if 'Generator' in var.name] 
-		print(self.g_vars)
 		
+
+		"""
+		In Soumith Chintala's GAN hacks tutorial, he sugest to feed all Generated and Real  Targets be fed
+		in exclusicve batches the following 2 optimizers allows us to do the same
+		They optimize Discriminator weights only
+		"""
 		self.DiscriminatorOptimizerReal=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorRealLoss,var_list=self.d_vars)
 		self.DiscriminatorOptimizerFake=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorFakeLoss,var_list=self.d_vars)
+		
+		"""
+		The followinng Optimizers are for minizing the Generator and Discriminator Loss wrt their weights
+		"""
 		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.01).minimize(self.GeneratorLoss,var_list=self.g_vars)
 		self.DiscriminatorOptimizer=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorLoss,var_list=self.d_vars)
+		
 		self.Session = tf.Session()
 		
 		self.init_op= tf.initialize_all_variables()
 		self.Session.run(self.init_op)
 		self.BatchSize=1
 		self.TrainSize=10
-		#self.Trainlist
 		self.HmEpochs=10
-		"""
-		declare the same for discriminator 
-		too
-		"""
-
+	
+	
 	def pack_raw(raw):
 		# pack Bayer image to 4 channels
 		im = raw.raw_image_visible.astype(np.float32)
@@ -88,9 +140,9 @@ class DarkGAN:
 				RealLabels=np.expand_dims(np.zeros(1),axis=1)
 				Discriminator_feed_dict={self.RealImagePlaceholder : brightimage ,self.GeneratorInput:image ,self.DiscriminatorLabelsReal:RealLabels,self.DiscriminatorLabelsFake:FakeLabels }
 				_,DiscCost,log=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorRealLoss,self.DiscriminatorLogitsReal],feed_dict=Discriminator_feed_dict)
-				print(log)
+				print(DiscCost)
 				GeneratorFeedDict={self.GeneratorLabels:RealLabels, self.GeneratorInput:image}
-				#_,GenCos=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss],feed_dict=GeneratorFeedDict)
+				_,GenCos=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss],feed_dict=GeneratorFeedDict)
 				#print(GenCos)
 				
 				mseloss,im=self.Session.run([self.GeneratorMSE,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
