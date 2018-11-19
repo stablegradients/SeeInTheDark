@@ -1,55 +1,46 @@
 import tensorflow as tf
 from tensorflow.contrib import slim
 import numpy as np
-TensorDict={}
-OutputFilters={"A":16,"B":32,"C":64,"D":128,"E":256}
-
-def lrelu(x,alpha=0.2):
-    return tf.maximum(x * alpha, x)
-
-
-def DiscriminatorConvloutions(inputs,block_code="A"):
-	inputs=slim.conv2d(inputs,OutputFilters[block_code]//2, kernel_size=3, stride=1, rate=1,padding='SAME',activation_fn=lrelu)
-	inputs=slim.conv2d(inputs,OutputFilters[block_code], kernel_size=3, stride=2, rate=1,padding='SAME',activation_fn=lrelu)
-	inputs=slim.conv2d(inputs,OutputFilters[block_code], kernel_size=3, stride=1, rate=1,padding='SAME',activation_fn=lrelu)
-	TensorDict[block_code+"2"]=inputs
-	inputs=slim.conv2d(inputs,OutputFilters[block_code], kernel_size=3, stride=2, rate=1,padding='SAME',activation_fn=lrelu)
-	TensorDict[block_code+"4"]=inputs
-	
-	return 
-def FetchInputs(block_code="A"):
-	if block_code == "B":
-		return TensorDict["A2"]
-	if block_code == "C":
-		return tf.concat([TensorDict["A4"],TensorDict["B2"]],axis=3)
-	if block_code == "D":
-		return tf.concat([TensorDict["B4"],TensorDict["C2"]],axis=3)
-	if block_code == "E":
-		return tf.concat([TensorDict["C4"],TensorDict["D2"]],axis=3)
-
 
 def Discriminator(inputs,reuse=None):
 	with tf.variable_scope('Discriminator',reuse=reuse):
-		DiscriminatorConvloutions(inputs,"A")
-
-		DiscriminatorConvloutions(FetchInputs("B"),"B")
-
-		DiscriminatorConvloutions(FetchInputs("C"),"C")
 		
-		DiscriminatorConvloutions(FetchInputs("D"),"D")
+		conv1 = slim.conv2d(inputs, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu,reuse =reuse,scope='Discriminator')
+		pool1=tf.space_to_depth(conv1,2)
+
+		conv2 = slim.conv2d(pool1, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv2 = slim.conv2d(conv2, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool2=tf.space_to_depth(conv2,2)
+
+		conv3 = slim.conv2d(pool2, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool3=tf.space_to_depth(conv3,2)
+
+		conv4 = slim.conv2d(pool3, 128, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv4 = slim.conv2d(conv4, 128, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool4=tf.space_to_depth(conv4,2)
 		
-		DiscriminatorConvloutions(FetchInputs("E"),"E")
 
-		ConvOutput=slim.conv2d(TensorDict["E4"],512, kernel_size=3, stride=2, rate=1,padding='SAME',activation_fn=lrelu)
+		conv5 = slim.conv2d(pool4, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv5 = slim.conv2d(conv5, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool5=tf.space_to_depth(conv5,2)
 
-		DenseLayer=tf.reduce_mean(ConvOutput, axis=[1,2])
+		conv6 = slim.conv2d(pool5, 512, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv6 = slim.conv2d(conv6, 512, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool6=tf.space_to_depth(conv6,2)
 
-		DenseLayer=tf.layers.dense(DenseLayer,50,activation=tf.nn.relu)
+		conv7 = slim.conv2d(pool6, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		conv7 = slim.conv2d(conv7, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
+		pool7=tf.space_to_depth(conv7,2)
 
-		DenseLayer=tf.layers.dense(DenseLayer,2,activation=tf.nn.relu)
+		DenseLayer=tf.reduce_mean(pool7,axis=[1,2])
+		DenseLayer=tf.layers.dense(inputs=DenseLayer,units=100,activation=tf.nn.leaky_relu)
 
-		DenseLayerSoft=tf.nn.softmax(DenseLayer)
-		return DenseLayer,DenseLayerSoft
+		DenseLayer=tf.layers.dense(inputs=DenseLayer,units=1,activation=None)
+
+		
+		return DenseLayer,tf.nn.sigmoid(DenseLayer)
 
 
 		
