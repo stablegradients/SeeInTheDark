@@ -12,7 +12,7 @@ class DarkGAN:
 		"""
 		This is placeholder for the input for the Generator it is a4 channnel input
 		"""
-		self.GeneratorInput=tf.placeholder(tf.float32, [None, 512, 512, 4])
+		self.GeneratorInput=tf.placeholder(tf.float32, [None, None, None, 4])
 		
 		"""
 		The DiscriminatorLabelsFake is always an array of zeros expanded
@@ -30,7 +30,7 @@ class DarkGAN:
 		self.DiscriminatorLabelsReal=tf.placeholder(tf.float32, [None, 1])
 		self.GeneratorLabels=tf.placeholder(tf.float32, [None, 1])
 
-		self.RealImagePlaceholder=tf.placeholder(tf.float32, [None, 512, 512, 3])
+		self.RealImagePlaceholder=tf.placeholder(tf.float32, [None, None, None, 3])
 		self.GeneratedImage=generator.network(self.GeneratorInput)
 
 		"""
@@ -65,7 +65,7 @@ class DarkGAN:
 		"""
 		This is for the user to observe how well with time is the model able to generate images simillar to the target
 		"""
-		self.GeneratorMSE=tf.losses.absolute_difference(self.GeneratedImage,self.RealImagePlaceholder)
+		self.GeneratorABS=tf.losses.absolute_difference(self.GeneratedImage,self.RealImagePlaceholder)
 
 		self.TrainableVars=tf.trainable_variables()
 
@@ -99,9 +99,10 @@ class DarkGAN:
 		
 		self.init_op= tf.initialize_all_variables()
 		self.Session.run(self.init_op)
-		self.BatchSize=1
+		self.BatchSize=10
 		self.TrainSize=10
 		self.HmEpochs=10
+		self.PatchSize=64
 		with open('DoDtrain_exposures.json') as f:
 			self.TrainDict = json.load(f)
 	
@@ -116,7 +117,7 @@ class DarkGAN:
 		img_shape = im.shape
 		H = img_shape[0]
 		W = img_shape[1]
-
+		# print("Shape of image",img_shape)
 		out = np.concatenate((im[0:H:2, 0:W:2, :],
 							  im[0:H:2, 1:W:2, :],
 							  im[1:H:2, 1:W:2, :],
@@ -124,43 +125,51 @@ class DarkGAN:
 		return out
 
 
-	def FetchImage(self,key):
+	def FetchImage(self,keys):
 			
-			image = self.pack_raw(rawpy.imread(key))
-			shape=image.shape
+			image = np.array([self.pack_raw(rawpy.imread(key))*self.TrainDict[key]["Exposure"] for key in keys])
+			shape=image[0].shape
 			H,W=shape[0],shape[1]
 			h,w=np.random.randint(low=0,high=H-513),np.random.randint(low=0,high=W-513)
 
-			image=np.expand_dims(image,axis=0)
-			image=image[:,h:h+512,w:w+512,:]
-
-			image = self.TrainDict[key]["Exposure"]*image# * self.Exposure[self.Trainlist[i]]
+			#image=np.expand_dims(image)
+			image=image[:,h:h+self.PatchSize,w:w+self.PatchSize,:]
+			print(np.shape(image))
+			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
 			
-			GT = rawpy.imread(self.TrainDict[key]["Target"])
-			GT = GT.postprocess(use_camera_wb=True, half_size=True, no_auto_bright=True, output_bps=16)
-			GT = np.expand_dims(np.float32(GT / 65535.0), axis=0)[:,h:h+512,w:w+512,:]
+			GT = [rawpy.imread(self.TrainDict[key]["Target"]) for key in keys]
+			GT = [gt.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16) for gt in GT]
+			GT = np.float32(np.array(GT) / 65535.0)[:,2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
+			print(np.shape(GT))
 			return image,GT
 
 			
 	 			
 	def train(self):
 		while True:
-			
-			for key in self.TrainDict.keys():
-				image,brightimage=self.FetchImage(key)
+			for batch_index in range(len(self.TrainDict.keys())/self.BatchSize):
+				keys = self.TrainDict.keys()[batch_index*self.BatchSize:(batch_index+1)*self.BatchSize]
+				image,brightimage=self.FetchImage(keys)
 
-				FakeLabels=np.expand_dims(np.ones(1),axis=1)
-				RealLabels=np.expand_dims(np.zeros(1),axis=1)
+				FakeLabels=0.9*np.expand_dims(np.ones(self.BatchSize),axis=1)
+				RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
 				
 				Discriminator_feed_dict={self.RealImagePlaceholder : brightimage ,self.GeneratorInput:image ,self.DiscriminatorLabelsReal:RealLabels,self.DiscriminatorLabelsFake:FakeLabels }
-				_,DiscCost,logreal,logfake=self.Session.run([self.DiscriminatorOptimizerReal,self.DiscriminatorRealLoss,self.DiscriminatorLogitsReal,self.DiscriminatorLogitsFake],feed_dict=Discriminator_feed_dict)
-				_,DiscCost,logreal,logfake=self.Session.run([self.DiscriminatorOptimizerFake,self.DiscriminatorRealLoss,self.DiscriminatorLogitsReal,self.DiscriminatorLogitsFake],feed_dict=Discriminator_feed_dict)
+
+
+				_,DiscCost,logreal=self.Session.run([self.DiscriminatorOptimizerReal,self.DiscriminatorRealLoss,self.DiscriminatorLogitsReal],feed_dict=Discriminator_feed_dict)
+				print(DiscCost,"logit output for real",logreal[0,0])
+				_,DiscCost,logfake=self.Session.run([self.DiscriminatorOptimizerFake,self.DiscriminatorFakeLoss,self.DiscriminatorLogitsFake],feed_dict=Discriminator_feed_dict)
+				print(DiscCost,"logit output for generated",logfake[0,0])
+
 				
 				GeneratorFeedDict={self.GeneratorLabels:RealLabels, self.GeneratorInput:image}
-				_,GenCos=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss],feed_dict=GeneratorFeedDict)
+				_,GenCost=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss],feed_dict=GeneratorFeedDict)
+				print("Discriminator unfooling loss",GenCost)
 				
-				mseloss,im=self.Session.run([self.GeneratorMSE,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
-				print("ABS loss",mseloss)
+				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
+				print("ABS loss",absloss)
+
 				
 
 dgan=DarkGAN()

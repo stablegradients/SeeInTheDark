@@ -181,14 +181,22 @@ def network(inputs,reuse=None):
 
 		conv8 = slim.conv2d(up4, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
 		conv8 = slim.conv2d(conv8, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+		conv8 = tf.layers.batch_normalization(conv8)
 
 		conv9=tf.depth_to_space(conv8,2)
 
-		conv10 = slim.conv2d(conv9, 3, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv10 = slim.conv2d(conv10, 3, [3, 3], rate=1, activation_fn=tf.nn.relu, reuse=reuse)
-		conv10 = tf.nn.relu(conv10)
+		conv10 = slim.conv2d(conv9, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+		conv10 = slim.conv2d(conv10, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+		conv10 = tf.layers.batch_normalization(conv10)
+		conv10=tf.depth_to_space(conv10,2)
 
-		return conv10
+
+		conv11 = slim.conv2d(conv10, 3, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+		conv11 = slim.conv2d(conv11, 3, [3, 3], rate=1, activation_fn=tf.nn.tanh, reuse=reuse)
+		
+		
+
+		return conv11
 
 
 

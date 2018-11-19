@@ -6,7 +6,7 @@ def Discriminator(inputs,reuse=None):
 	with tf.variable_scope('Discriminator',reuse=reuse):
 		
 		conv1 = slim.conv2d(inputs, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
-		conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu,reuse =reuse,scope='Discriminator')
+		conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu)
 		conv1 = tf.layers.batch_normalization(conv1)
 		pool1=tf.space_to_depth(conv1,2)
 
