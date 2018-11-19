@@ -137,66 +137,67 @@ def network(inputs,reuse=None):
 	with tf.variable_scope('Generator',reuse=reuse):
 		def lrelu(x,alpha=0.2):
 			return tf.maximum(x * alpha, x)
+		with slim.arg_scope([slim.conv2d],padding='SAME',weights_regularizer=slim.l2_regularizer(0.001)):
 
-		conv1 = slim.conv2d(inputs, 16, [3, 3], rate=1, activation_fn=lrelu,reuse=reuse)
-		conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=lrelu,reuse =reuse)
-		conv1 = tf.layers.batch_normalization(conv1)
-		pool1=tf.space_to_depth(conv1,2)
+			conv1 = slim.conv2d(inputs, 16, [3, 3], rate=1, activation_fn=lrelu,reuse=reuse)
+			conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=lrelu,reuse =reuse)
+			conv1 = tf.layers.batch_normalization(conv1)
+			pool1=tf.space_to_depth(conv1,2)
 
-		conv2 = slim.conv2d(pool1, 32, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv2 = slim.conv2d(conv2, 32, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv2 = tf.layers.batch_normalization(conv2)
-		pool2=tf.space_to_depth(conv2,2)
+			conv2 = slim.conv2d(pool1, 32, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv2 = slim.conv2d(conv2, 32, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv2 = tf.layers.batch_normalization(conv2)
+			pool2=tf.space_to_depth(conv2,2)
 
-		conv3 = slim.conv2d(pool2, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv3 = tf.layers.batch_normalization(conv3)
-		pool3=tf.space_to_depth(conv3,2)
+			conv3 = slim.conv2d(pool2, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv3 = tf.layers.batch_normalization(conv3)
+			pool3=tf.space_to_depth(conv3,2)
 
-		conv4 = slim.conv2d(pool3, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv4 = slim.conv2d(conv4, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv4 = tf.layers.batch_normalization(conv4)
-		pool4=tf.space_to_depth(conv4,2)
+			conv4 = slim.conv2d(pool3, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv4 = slim.conv2d(conv4, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv4 = tf.layers.batch_normalization(conv4)
+			pool4=tf.space_to_depth(conv4,2)
 
-		conv5 = slim.conv2d(pool4, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		latent = slim.conv2d(conv5, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-
-
-		up6 = tf.depth_to_space(latent,2)
-
-		conv6 = slim.conv2d(up6, 256, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv6 = slim.conv2d(conv6, 256, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv6 = tf.layers.batch_normalization(conv6)
-
-		up5=tf.concat([conv6,pool3],axis=3)
-		up5 = tf.depth_to_space(up5,2)
-
-		conv7 = slim.conv2d(up5, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv7 = slim.conv2d(conv7, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv7 = tf.layers.batch_normalization(conv7)
-
-		up4=tf.concat([conv7,pool2],axis=3)
-		up4 = tf.depth_to_space(up4,2)
+			conv5 = slim.conv2d(pool4, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			latent = slim.conv2d(conv5, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
 
 
-		conv8 = slim.conv2d(up4, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv8 = slim.conv2d(conv8, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv8 = tf.layers.batch_normalization(conv8)
+			up6 = tf.depth_to_space(latent,2)
 
-		conv9=tf.depth_to_space(conv8,2)
+			conv6 = slim.conv2d(up6, 256, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv6 = slim.conv2d(conv6, 256, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv6 = tf.layers.batch_normalization(conv6)
 
-		conv10 = slim.conv2d(conv9, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv10 = slim.conv2d(conv10, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv10 = tf.layers.batch_normalization(conv10)
-		conv10=tf.depth_to_space(conv10,2)
+			up5=tf.concat([conv6,pool3],axis=3)
+			up5 = tf.depth_to_space(up5,2)
+
+			conv7 = slim.conv2d(up5, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv7 = slim.conv2d(conv7, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv7 = tf.layers.batch_normalization(conv7)
+
+			up4=tf.concat([conv7,pool2],axis=3)
+			up4 = tf.depth_to_space(up4,2)
 
 
-		conv11 = slim.conv2d(conv10, 3, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
-		conv11 = slim.conv2d(conv11, 3, [3, 3], rate=1, activation_fn=tf.nn.tanh, reuse=reuse)
-		
-		
+			conv8 = slim.conv2d(up4, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv8 = slim.conv2d(conv8, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv8 = tf.layers.batch_normalization(conv8)
 
-		return conv11
+			conv9=tf.depth_to_space(conv8,2)
+
+			conv10 = slim.conv2d(conv9, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv10 = slim.conv2d(conv10, 16, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv10 = tf.layers.batch_normalization(conv10)
+			conv10=tf.depth_to_space(conv10,2)
+
+
+			conv11 = slim.conv2d(conv10, 3, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse)
+			conv11 = slim.conv2d(conv11, 3, [3, 3], rate=1, activation_fn=tf.nn.tanh, reuse=reuse)
+			
+			
+
+			return conv11
 
 
 

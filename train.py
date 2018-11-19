@@ -4,6 +4,7 @@ import rawpy
 import discriminator 
 import generator
 import json
+import matplotlib.pyplot as plt
 
 class DarkGAN:
 	"""docstring for ClassName"""
@@ -51,15 +52,15 @@ class DarkGAN:
 
 		"""
 		
-		self.DiscriminatorRealLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorOutReal, labels=self.DiscriminatorLabelsReal))
-		self.DiscriminatorFakeLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorOutFake, labels=self.DiscriminatorLabelsFake))
+		self.DiscriminatorRealLoss=tf.reduce_mean(self.cross_entropy(logits=self.DiscriminatorLogitsReal, labels=self.DiscriminatorLabelsReal))
+		self.DiscriminatorFakeLoss=tf.reduce_mean(self.cross_entropy(logits=self.DiscriminatorLogitsFake, labels=self.DiscriminatorLabelsFake))
 		self.DiscriminatorLoss=tf.reduce_mean(self.DiscriminatorRealLoss+self.DiscriminatorFakeLoss)
 		
 		"""
 		GeneratorLoss=SigLoss(P(Discriminator thinks Generated Image is correct),logit =1)
 
 		"""
-		self.GeneratorLoss=tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.DiscriminatorLogitsFake, labels=self.GeneratorLabels))
+		self.GeneratorLoss=tf.reduce_mean(self.cross_entropy(logits=self.DiscriminatorLogitsFake, labels=self.GeneratorLabels))
 		
 
 		"""
@@ -86,26 +87,34 @@ class DarkGAN:
 		in exclusicve batches the following 2 optimizers allows us to do the same
 		They optimize Discriminator weights only
 		"""
-		self.DiscriminatorOptimizerReal=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorRealLoss,var_list=self.d_vars)
-		self.DiscriminatorOptimizerFake=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorFakeLoss,var_list=self.d_vars)
+		self.DiscriminatorOptimizerReal=tf.train.AdamOptimizer(0.00001).minimize(self.DiscriminatorRealLoss,var_list=self.d_vars)
+		self.DiscriminatorOptimizerFake=tf.train.AdamOptimizer(0.00001).minimize(self.DiscriminatorFakeLoss,var_list=self.d_vars)
 		
 		"""
 		The followinng Optimizers are for minizing the Generator and Discriminator Loss wrt their weights
 		"""
-		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.01).minimize(self.GeneratorLoss,var_list=self.g_vars)
-		self.DiscriminatorOptimizer=tf.train.AdamOptimizer(0.01).minimize(self.DiscriminatorLoss,var_list=self.d_vars)
+		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.GeneratorLoss,var_list=self.g_vars)
+		self.GeneratorGradients=tf.train.AdamOptimizer(0.00001).compute_gradients(self.GeneratorLoss,var_list=self.g_vars)
+		self.DiscriminatorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.DiscriminatorLoss,var_list=self.d_vars)
 		
 		self.Session = tf.Session()
+		self.saver=tf.train.Saver()
 		
 		self.init_op= tf.initialize_all_variables()
 		self.Session.run(self.init_op)
-		self.BatchSize=10
+		self.BatchSize=3
 		self.TrainSize=10
 		self.HmEpochs=10
 		self.PatchSize=64
+		self.save_path="./models/"
 		with open('DoDtrain_exposures.json') as f:
 			self.TrainDict = json.load(f)
 	
+
+	def cross_entropy(self,logits,labels,K=0.99999):
+		logits = logits*K +(1-K)/2
+		loss = -tf.multiply(labels,tf.log(logits)) - tf.multiply((1-labels),tf.log(1-logits))
+		return loss
 
 	def pack_raw(self,raw):
 		# pack Bayer image to 4 channels
@@ -125,7 +134,7 @@ class DarkGAN:
 		return out
 
 
-	def FetchImage(self,keys):
+	def FetchImage(self,keys,patch=True):
 			
 			image = np.array([self.pack_raw(rawpy.imread(key))*self.TrainDict[key]["Exposure"] for key in keys])
 			shape=image[0].shape
@@ -133,43 +142,73 @@ class DarkGAN:
 			h,w=np.random.randint(low=0,high=H-513),np.random.randint(low=0,high=W-513)
 
 			#image=np.expand_dims(image)
-			image=image[:,h:h+self.PatchSize,w:w+self.PatchSize,:]
+			if(patch==True):
+				image=image[:,h:h+self.PatchSize,w:w+self.PatchSize,:]
 			print(np.shape(image))
 			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
 			
 			GT = [rawpy.imread(self.TrainDict[key]["Target"]) for key in keys]
 			GT = [gt.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16) for gt in GT]
-			GT = np.float32(np.array(GT) / 65535.0)[:,2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
+			GT = np.float32(np.array(GT) / 65535.0)
+			if(patch==True):
+				GT = GT[:,2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
 			print(np.shape(GT))
 			return image,GT
 
 			
 	 			
 	def train(self):
+		counter=0
+		gen_loss = []
+		disc_loss = []
+		abs_loss = []
+		fig = plt.figure()
 		while True:
+			counter+=1
 			for batch_index in range(len(self.TrainDict.keys())/self.BatchSize):
 				keys = self.TrainDict.keys()[batch_index*self.BatchSize:(batch_index+1)*self.BatchSize]
-				image,brightimage=self.FetchImage(keys)
+				image,brightimage=self.FetchImage(keys,patch=False)
 
-				FakeLabels=0.9*np.expand_dims(np.ones(self.BatchSize),axis=1)
+				FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
 				RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
 				
-				Discriminator_feed_dict={self.RealImagePlaceholder : brightimage ,self.GeneratorInput:image ,self.DiscriminatorLabelsReal:RealLabels,self.DiscriminatorLabelsFake:FakeLabels }
+				Discriminator_feed_dict={self.RealImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels }
 
 
-				_,DiscCost,logreal=self.Session.run([self.DiscriminatorOptimizerReal,self.DiscriminatorRealLoss,self.DiscriminatorLogitsReal],feed_dict=Discriminator_feed_dict)
-				print(DiscCost,"logit output for real",logreal[0,0])
+				_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
+				print("Discriminator cost",DiscCost)
+
+				"""
+				
+				Discriminator_feed_dict={self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels }
+
 				_,DiscCost,logfake=self.Session.run([self.DiscriminatorOptimizerFake,self.DiscriminatorFakeLoss,self.DiscriminatorLogitsFake],feed_dict=Discriminator_feed_dict)
 				print(DiscCost,"logit output for generated",logfake[0,0])
 
-				
+				"""
 				GeneratorFeedDict={self.GeneratorLabels:RealLabels, self.GeneratorInput:image}
-				_,GenCost=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss],feed_dict=GeneratorFeedDict)
+				_,GenCost,grad=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss,self.GeneratorGradients],feed_dict=GeneratorFeedDict)
 				print("Discriminator unfooling loss",GenCost)
 				
 				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
 				print("ABS loss",absloss)
-
+			gen_loss.append(GenCost)
+			disc_loss.append(DiscCost)
+			abs_loss.append(absloss)
+			plt.gca().set_color_cycle(['red','green','blue'])
+			plt.plot(np.arange(counter)+1,gen_loss)
+			plt.plot(np.arange(counter)+1,disc_loss)
+			plt.plot(np.arange(counter)+1,abs_loss)
+			plt.legend(('Generator','Discriminator','Absolute'))
+			plt.draw()
+			plt.pause(0.0001)
+			save_path = self.saver.save(self.Session,self.save_path+"model"+str(counter)+".ckpt")
+				# plt.figure()
+				# plt.subplot(121)
+				# plt.imshow((im[0]*255).astype('uint8'))
+				# plt.subplot(122)
+				# plt.imshow((brightimage[0]*255).astype('uint8'))
+				# plt.show()
 				
 
 dgan=DarkGAN()
