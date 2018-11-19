@@ -144,7 +144,7 @@ class DarkGAN:
 			
 	 			
 	def train(self):
-		for epoch in range(self.HmEpochs):
+		while True:
 			
 			for key in self.TrainDict.keys():
 				image,brightimage=self.FetchImage(key)
