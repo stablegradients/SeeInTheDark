@@ -59,15 +59,15 @@ def Discriminator(Target,DarkInput,reuse=None,is_training=True):
 			conv5 = slim.conv2d(conv5, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 			conv5 = slim.batch_norm(conv5, is_training=is_training)
 			
-			conv6 = slim.conv2d(pool5, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+			conv6 = slim.conv2d(conv5, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
 			conv6 = slim.conv2d(conv6, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 			conv6 = slim.batch_norm(conv6, is_training=is_training)
 			
-			conv7 = slim.conv2d(pool6, 512, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+			conv7 = slim.conv2d(conv6, 512, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
 			conv7 = slim.conv2d(conv7, 512, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 			conv7 = slim.batch_norm(conv7, is_training=is_training)
 			
-			DenseLayer=tf.reduce_mean(pool7,axis=[1,2])
+			DenseLayer=tf.reduce_mean(conv7,axis=[1,2])
 			DenseLayer=tf.layers.dense(inputs=DenseLayer,units=100,activation=tf.nn.leaky_relu)
 
 			DenseLayer = tf.layers.batch_normalization(DenseLayer)

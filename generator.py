@@ -2,8 +2,8 @@ from tensorflow.contrib import slim
 import tensorflow as tf
 import numpy as np
 
-def network(inputs,reuse=None):
-	with tf.variable_scope('Generator',reuse=reuse, is_training=True):
+def network(inputs,reuse=None, is_training=True):
+	with tf.variable_scope('Generator',reuse=reuse):
 		def lrelu(x,alpha=0.2):
 			return tf.maximum(x * alpha, x)
 		with slim.arg_scope([slim.conv2d],padding='SAME',weights_regularizer=slim.l2_regularizer(0.001)):
@@ -16,15 +16,15 @@ def network(inputs,reuse=None):
 			conv2 = slim.conv2d(conv2, 32, [5, 5], rate=1, activation_fn=lrelu, reuse=reuse, stride=2)
 			conv2 =  slim.batch_norm(conv2, is_training=is_training)
 			
-			conv3 = slim.conv2d(pool2, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
+			conv3 = slim.conv2d(conv2, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
 			conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=2)
 			conv3 =  slim.batch_norm(conv3, is_training=is_training)
 			
-			conv4 = slim.conv2d(pool3, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
+			conv4 = slim.conv2d(conv3, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
 			conv4 = slim.conv2d(conv4, 128, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=2)
 			conv4 =  slim.batch_norm(conv4, is_training=is_training)
 			
-			conv5 = slim.conv2d(pool4, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
+			conv5 = slim.conv2d(conv4, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=1)
 			latent = slim.conv2d(conv5, 512, [3, 3], rate=1, activation_fn=lrelu, reuse=reuse, stride=2)
 
 

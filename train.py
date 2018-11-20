@@ -13,8 +13,7 @@ class DarkGAN:
 		"""
 		This is placeholder for the input for the Generator it is a4 channnel input
 		"""
-		self.GeneratorInp
-		ut=tf.placeholder(tf.float32, [None, None, None, 4])
+		self.GeneratorInput=tf.placeholder(tf.float32, [None, None, None, 4])
 		
 		"""
 		The DiscriminatorLabelsFake is always an array of zeros expanded
@@ -25,14 +24,14 @@ class DarkGAN:
 
 		The GeneratorLabels shall take the same labels as that of DiscriminatorRealLabels
 
-		The RealImagePlaceholder is for when we need to feed the target image for the discriminnator
+		The TargetImagePlaceholder is for when we need to feed the target image for the discriminnator
 
 		"""
 		self.DiscriminatorLabelsFake=tf.placeholder(tf.float32, [None, 1])
 		self.DiscriminatorLabelsReal=tf.placeholder(tf.float32, [None, 1])
 		self.GeneratorLabels=tf.placeholder(tf.float32, [None, 1])
 
-		self.RealImagePlaceholder=tf.placeholder(tf.float32, [None, None, None, 3])
+		self.TargetImagePlaceholder=tf.placeholder(tf.float32, [None, None, None, 3])
 		self.GeneratedImage=generator.network(self.GeneratorInput)
 
 		"""
@@ -41,8 +40,8 @@ class DarkGAN:
 
 		"""
 
-		self.DiscriminatorOutReal,self.DiscriminatorLogitsReal=discriminator.Discriminator(self.RealImagePlaceholder)
-		self.DiscriminatorOutFake,self.DiscriminatorLogitsFake=discriminator.Discriminator(self.GeneratedImage,reuse=True)
+		self.DiscriminatorOutReal,self.DiscriminatorLogitsReal=discriminator.Discriminator(Target=self.TargetImagePlaceholder,DarkInput=self.GeneratorInput)
+		self.DiscriminatorOutFake,self.DiscriminatorLogitsFake=discriminator.Discriminator(Target=self.GeneratedImage,DarkInput=self.GeneratorInput,reuse=True)
 
 		"""
 		As the target and the computation graph are different when the generated image is fed or the true target 
@@ -67,7 +66,7 @@ class DarkGAN:
 		"""
 		This is for the user to observe how well with time is the model able to generate images simillar to the target
 		"""
-		self.GeneratorABS=tf.losses.absolute_difference(self.GeneratedImage,self.RealImagePlaceholder)
+		self.GeneratorABS=tf.losses.absolute_difference(self.GeneratedImage,self.TargetImagePlaceholder)
 
 		self.TrainableVars=tf.trainable_variables()
 
@@ -136,29 +135,30 @@ class DarkGAN:
 		return out
 
 
-	def FetchImage(self,keys,patch=True):
+	def FetchImage(self,key,patch=True):
 			
 			image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
-			shape=image[0].shape
+			shape=image.shape
 			H,W=shape[0],shape[1]
-			h,w=np.random.randint(low=0,high=H-513),np.random.randint(low=0,high=W-513)
+			print("H",H,"  W",W)
+			h,w=np.random.randint(low=0,high=H-self.PatchSize-1),np.random.randint(low=0,high=W-self.PatchSize-1)
 
 			images = []
 			if(patch==True):
 				for i in range(self.BatchSize):
 					images.append(image[h[i]:h[i]+self.PatchSize,w[i]:w[i]+self.PatchSize,:])
 			else:
-				image=np.expand_dims(image)
+				image=np.expand_dims(image,axis=0)
 			print(np.shape(images))
 			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
 			
 			GT = rawpy.imread(self.TrainDict[key]["Target"])
-			GT = gt.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
+			GT = GT.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
 			GT = np.float32(np.array(GT) / float(65535.0))
 			if(patch==True):
 				GT = GT[2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
 			else:
-				GT = np.expand_dims(GT)
+				GT = np.expand_dims(GT,axis=0)
 			print(np.shape(GT))
 			return image,GT
 
@@ -182,7 +182,7 @@ class DarkGAN:
 				FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
 				RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
 				
-				Discriminator_feed_dict={self.RealImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels }
+				Discriminator_feed_dict={self.TargetImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels }
 
 
 				_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
@@ -200,7 +200,7 @@ class DarkGAN:
 				_,GenCost,grad=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss,self.GeneratorGradients],feed_dict=GeneratorFeedDict)
 				print("Discriminator unfooling loss",GenCost)
 				
-				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
+				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.TargetImagePlaceholder:brightimage,self.GeneratorInput:image})
 				print("ABS loss",absloss)
 				mean_gen_loss += GenCost
 				mean_disc_loss += DiscCost
