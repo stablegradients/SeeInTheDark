@@ -13,7 +13,8 @@ class DarkGAN:
 		"""
 		This is placeholder for the input for the Generator it is a4 channnel input
 		"""
-		self.GeneratorInput=tf.placeholder(tf.float32, [None, None, None, 4])
+		self.GeneratorInp
+		ut=tf.placeholder(tf.float32, [None, None, None, 4])
 		
 		"""
 		The DiscriminatorLabelsFake is always an array of zeros expanded
@@ -93,7 +94,8 @@ class DarkGAN:
 		"""
 		The followinng Optimizers are for minizing the Generator and Discriminator Loss wrt their weights
 		"""
-		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.GeneratorLoss,var_list=self.g_vars)
+		self.gen_loss_lambda = 1.0
+		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.GeneratorLoss+self.gen_loss_lambda*self.GeneratorABS,var_list=self.g_vars)
 		self.GeneratorGradients=tf.train.AdamOptimizer(0.00001).compute_gradients(self.GeneratorLoss,var_list=self.g_vars)
 		self.DiscriminatorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.DiscriminatorLoss,var_list=self.d_vars)
 		
@@ -102,7 +104,7 @@ class DarkGAN:
 		
 		self.init_op= tf.initialize_all_variables()
 		self.Session.run(self.init_op)
-		self.BatchSize=3
+		self.BatchSize=1
 		self.TrainSize=10
 		self.HmEpochs=10
 		self.PatchSize=64
@@ -136,22 +138,27 @@ class DarkGAN:
 
 	def FetchImage(self,keys,patch=True):
 			
-			image = np.array([self.pack_raw(rawpy.imread(key))*self.TrainDict[key]["Exposure"] for key in keys])
+			image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
 			shape=image[0].shape
 			H,W=shape[0],shape[1]
 			h,w=np.random.randint(low=0,high=H-513),np.random.randint(low=0,high=W-513)
 
-			#image=np.expand_dims(image)
+			images = []
 			if(patch==True):
-				image=image[:,h:h+self.PatchSize,w:w+self.PatchSize,:]
-			print(np.shape(image))
+				for i in range(self.BatchSize):
+					images.append(image[h[i]:h[i]+self.PatchSize,w[i]:w[i]+self.PatchSize,:])
+			else:
+				image=np.expand_dims(image)
+			print(np.shape(images))
 			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
 			
-			GT = [rawpy.imread(self.TrainDict[key]["Target"]) for key in keys]
-			GT = [gt.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16) for gt in GT]
-			GT = np.float32(np.array(GT) / 65535.0)
+			GT = rawpy.imread(self.TrainDict[key]["Target"])
+			GT = gt.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
+			GT = np.float32(np.array(GT) / float(65535.0))
 			if(patch==True):
-				GT = GT[:,2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
+				GT = GT[2*h:2*h+2*self.PatchSize,2*w:2*w+2*self.PatchSize,:]
+			else:
+				GT = np.expand_dims(GT)
 			print(np.shape(GT))
 			return image,GT
 
@@ -164,10 +171,13 @@ class DarkGAN:
 		abs_loss = []
 		fig = plt.figure()
 		while True:
+			mean_gen_loss = 0.0
+			mean_disc_loss = 0.0
+			mean_abs_loss = 0.0
 			counter+=1
-			for batch_index in range(len(self.TrainDict.keys())/self.BatchSize):
-				keys = self.TrainDict.keys()[batch_index*self.BatchSize:(batch_index+1)*self.BatchSize]
-				image,brightimage=self.FetchImage(keys,patch=False)
+			for key in self.TrainDict.keys():
+				# Fetch batch_size no. of patches from each image
+				image,brightimage=self.FetchImage(key,patch=False)
 
 				FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
 				RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
@@ -192,9 +202,16 @@ class DarkGAN:
 				
 				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.RealImagePlaceholder:brightimage,self.GeneratorInput:image})
 				print("ABS loss",absloss)
-			gen_loss.append(GenCost)
-			disc_loss.append(DiscCost)
-			abs_loss.append(absloss)
+				mean_gen_loss += GenCost
+				mean_disc_loss += DiscCost
+				mean_abs_loss += absloss
+			N = float(len(self.TrainDict.keys()))
+			mean_gen_loss /= N
+			mean_disc_loss /= N
+			mean_abs_loss /= N
+			gen_loss.append(mean_gen_loss)
+			disc_loss.append(mean_disc_loss)
+			abs_loss.append(mean_abs_loss)
 			plt.gca().set_color_cycle(['red','green','blue'])
 			plt.plot(np.arange(counter)+1,gen_loss)
 			plt.plot(np.arange(counter)+1,disc_loss)
