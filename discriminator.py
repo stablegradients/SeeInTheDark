@@ -13,16 +13,16 @@ def Discriminator(Target,DarkInput,reuse=None,is_training=True):
 				adn bring it from a res of (None,16a,16b,3) to (None,a,b,1024)
 				"""	
 
-				conv1 = slim.conv2d(inputs, 16, [7, 7], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
-				conv1 = slim.conv2d(conv1, 16, [7, 7], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
+				conv1 = slim.conv2d(inputs, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+				conv1 = slim.conv2d(conv1, 16, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 				conv1 = slim.batch_norm(conv1, is_training=is_training)
 				
-				conv2 = slim.conv2d(conv1, 32, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
-				conv2 = slim.conv2d(conv2, 32, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
+				conv2 = slim.conv2d(conv1, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+				conv2 = slim.conv2d(conv2, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 				conv2 = slim.batch_norm(conv2, is_training=is_training)
 				
-				conv3 = slim.conv2d(conv2, 64, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
-				conv3 = slim.conv2d(conv3, 64, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
+				conv3 = slim.conv2d(conv2, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+				conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 				conv3 = slim.batch_norm(conv3, is_training=is_training)
 
 				conv4 = slim.conv2d(conv3, 128, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
@@ -37,12 +37,12 @@ def Discriminator(Target,DarkInput,reuse=None,is_training=True):
 				and apply convolutions operations on it 
 				adn bring it from a res of (None,8a,8b,4) to (None,a,b,1024)
 				"""	
-				conv2 = slim.conv2d(inputs, 32, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
-				conv2 = slim.conv2d(conv2, 32, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
+				conv2 = slim.conv2d(inputs, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+				conv2 = slim.conv2d(conv2, 32, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 				conv2 = slim.batch_norm(conv2, is_training=is_training)
 			
-				conv3 = slim.conv2d(conv2, 64, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
-				conv3 = slim.conv2d(conv3, 64, [5, 5], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
+				conv3 = slim.conv2d(conv2, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+				conv3 = slim.conv2d(conv3, 64, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 				conv3 = slim.batch_norm(conv3, is_training=is_training)
 			
 				conv4 = slim.conv2d(conv3, 128, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
