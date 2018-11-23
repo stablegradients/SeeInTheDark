@@ -50,12 +50,27 @@ def Discriminator(Target,DarkInput,reuse=None,is_training=True):
 				conv4 = slim.batch_norm(conv4, is_training=is_training)
 				return conv4
 			
+			def DCNx(DCNinputs=inputs,BlockSize=9,FilterCount=7,KernelSize=5,reuse=reuse):
+			TensorList=[]
+			x = slim.conv2d(inputs, FilterCount, [KernelSize, KernelSize], rate=1, activation_fn=tf.nn.leaky_relu,reuse=reuse, stride=1)
+			TensorList.append(x)
+			for i in range(BlockSize):
+				x=tf.concat(TensorList,axis=3)
+				x = slim.conv2d(inputs, FilterCount, [KernelSize, KernelSize], rate=1, activation_fn=tf.nn.leaky_relu,reuse=reuse, stride=1)
+				
+				if i == BlockSize-1:
+					return x
+				else:
+					TensorList.append(x)
+
 			Target = TargetConv(inputs=Target,reuse=reuse)
 			DarkInput = DarkInputConv(inputs=DarkInput,reuse=reuse)
 
 			combined = tf.concat([Target,DarkInput],axis=3)
 
-			conv5 = slim.conv2d(combined, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
+			dcn = DCNx(combined)
+
+			conv5 = slim.conv2d(dcn, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=1)
 			conv5 = slim.conv2d(conv5, 256, [3, 3], rate=1, activation_fn=tf.nn.leaky_relu, stride=2)
 			conv5 = slim.batch_norm(conv5, is_training=is_training)
 			
