@@ -171,16 +171,43 @@ class DarkGAN:
 			print(np.shape(GT))
 			return image,GT
 
-			
-	 			
+	def show_images(self,im,brightimages):
+		self.ax2[0].imshow((im[0]*255).astype('uint8'))
+		self.ax2[1].imshow((brightimage[0]*255).astype('uint8'))
+		plt.draw()
+		plt.pause(0.0001)
+	
+	def init_plots(self):
+		self.gen_loss_list, self.disc_loss_list, self.abs_loss_list, self.valid_abs_loss_list = [],[],[],[]
+		self.fig1,self.ax1 = plt.subplots(1,3,sharex=True,squeeze=True)
+		self.fig2,self.ax2 = plt.subplots(1,2,squeeze=True)
+
+	def plots(self, mean_gen_loss, mean_disc_loss, mean_abs_loss, valid_abs_loss):
+		self.gen_loss_list.append(mean_gen_loss)
+		self.disc_loss_list.append(mean_disc_loss)
+		self.abs_loss_list.append(mean_abs_loss)
+		self.valid_abs_loss_list.append(valid_abs_loss)
+		counter = len(self.gen_loss_list)
+		self.ax1[0].set_xlabel('Epoch')
+		self.ax1[0].set_title('Generator Loss')
+		self.ax1[0].plot(np.arange(counter)+1,self.gen_loss_list)
+		self.ax1[1].set_title('Discriminator Loss')
+		self.ax1[1].plot(np.arange(counter)+1,self.disc_loss_list)
+		self.ax1[2].set_title('L1 Loss')
+		self.ax1[2].plot(np.arange(counter)+1,self.abs_loss_list)
+		self.ax1[2].plot(np.arange(counter)+1,self.valid_abs_loss_list)
+		self.ax1[2].legend(['Training','Validation'])
+		plt.tight_layout()
+		plt.draw()
+		fig1.savefig('losses.png')			
+		plt.pause(0.0001)
+
 	def train(self):
 		counter=0
-		gen_loss, disc_loss, abs_loss, valid_abs_loss = [],[],[],[]
 		keys = self.TrainDict.keys()
 		batch_replay = True
-		replay_key = keys[-1]
-		fig1,ax1 = plt.subplots(1,3,sharex=True,squeeze=True)
-		fig2,ax2 = plt.subplots(1,2,squeeze=True)
+		replay_image,replay_brightimage = self.FetchImage(keys[-1],patch=True)
+		self.init_plots()
 		while True:
 			mean_gen_loss, mean_disc_loss, mean_abs_loss = 0.0,0.0,0.0
 			counter+=1
@@ -202,54 +229,30 @@ class DarkGAN:
 				print("Discriminator unfooling loss",GenCost)
 				
 				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.TargetImagePlaceholder:brightimage,self.GeneratorInput:image})
-				absloss = np.random.random()
 				print("ABS loss",absloss)
 
 				if(batch_replay==True):
-					image,brightimage=self.FetchImage(replay_key,patch=True)
-					Discriminator_feed_dict={self.TargetImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels}
+					Discriminator_feed_dict={self.TargetImagePlaceholder : replay_brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:replay_image ,self.DiscriminatorLabelsFake:FakeLabels}
 					print("Batch replayed")
 					_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
 					print("Discriminator cost",str(DiscCost))
-					replay_key = key
+					replay_image, replay_brightimage = image, brightimage
 
 				mean_gen_loss += GenCost
 				mean_disc_loss += DiscCost
 				mean_abs_loss += absloss
-				ax2[0].imshow((im[0]*255).astype('uint8'))
-				ax2[1].imshow((brightimage[0]*255).astype('uint8'))
-				plt.draw()
-				plt.pause(0.0001)
+				self.show_images(im, brightimage)
 
 			valid_keys = self.ValidDict.keys()
 			for key in valid_keys:
 				image,_=self.FetchImage(key,patch=True)
-				im,absloss=self.Session.run([self.GeneratedImage,self.GeneratorABS],feed_dict={self.GeneratorInput:image,self.TargetImagePlaceholder:brightimage})
+				im,valid_abs_loss=self.Session.run([self.GeneratedImage,self.GeneratorABS],feed_dict={self.GeneratorInput:image,self.TargetImagePlaceholder:brightimage})
 				print("Validation!!!!!!!")
-				print("Validation Absolute Loss "+str(absloss))
+				print("Validation Absolute Loss "+str(valid_abs_loss))
 				misc.imsave("./Sony/results/"+key[13:-4]+"result.png",im)
 
 			N = float(len(keys))
-			mean_gen_loss /= N
-			mean_abs_loss /= N
-			mean_disc_loss /= N
-			gen_loss.append(mean_gen_loss)
-			disc_loss.append(mean_disc_loss)
-			abs_loss.append(mean_abs_loss)
-			valid_abs_loss.append(absloss)
-			ax1[0].set_xlabel('Epoch')
-			ax1[0].set_title('Generator Loss')
-			ax1[0].plot(np.arange(counter)+1,gen_loss)
-			ax1[1].set_title('Discriminator Loss')
-			ax1[1].plot(np.arange(counter)+1,disc_loss)
-			ax1[2].set_title('L1 Loss')
-			ax1[2].plot(np.arange(counter)+1,abs_loss)
-			ax1[2].plot(np.arange(counter)+1,valid_abs_loss)
-
-			plt.tight_layout()
-			plt.draw()
-			fig1.savefig('losses.png')			
-			plt.pause(0.0001)
+			self.plots(mean_gen_loss/N,	mean_disc_loss/N, mean_abs_loss/N, valid_abs_loss)
 			
 			save_path = self.saver.save(self.Session,self.save_path+"model"+str(counter)+".ckpt")
 
