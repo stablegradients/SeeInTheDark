@@ -6,6 +6,7 @@ import generator
 import json
 import matplotlib.pyplot as plt
 from scipy import misc
+import math
 
 class DarkGAN:
 	"""docstring for ClassName"""
@@ -97,8 +98,7 @@ class DarkGAN:
 		The followinng Optimizers are for minizing the Generator and Discriminator Loss wrt their weights
 		"""
 		self.gen_loss_lambda1 = 1.0
-		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.GeneratorLoss+\
-			self.gen_loss_lambda1*self.GeneratorABS,var_list=self.g_vars)
+		self.GeneratorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.GeneratorLoss+self.gen_loss_lambda1*self.GeneratorABS,var_list=self.g_vars)
 		self.GeneratorGradients=tf.train.AdamOptimizer(0.00001).compute_gradients(self.GeneratorLoss,var_list=self.g_vars)
 		self.DiscriminatorOptimizer=tf.train.AdamOptimizer(0.00001).minimize(self.DiscriminatorLoss,var_list=self.d_vars)
 		
@@ -107,11 +107,13 @@ class DarkGAN:
 		
 		self.init_op= tf.initialize_all_variables()
 		self.Session.run(self.init_op)
+		self.BatchReplayBool=True
 		self.BatchSize=1
 		self.TrainSize=10
 		self.HmEpochs=10
 		self.PatchSize=64
 		self.save_path="./models/"
+
 		with open('DoDtrain_exposures.json') as f:
 			self.TrainDict = json.load(f)
 		with open('DoDval_exposures.json') as f:
@@ -143,36 +145,56 @@ class DarkGAN:
 		return out
 
 
-	def FetchImage(self,key,patch=True,training=True):
-			
-			if training:
-				image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
-			else:
-				image = np.array(self.pack_raw(rawpy.imread(key))*float(self.ValidDict[key]["Exposure"]))
-			shape=image.shape
-			H,W=shape[0],shape[1]
-			if(patch==True):
-				h,w=np.random.randint(low=0,high=H-self.PatchSize-1,size=self.BatchSize),np.random.randint(low=0,high=W-self.PatchSize-1,size=self.BatchSize)
-			else:
-				h,w=np.random.randint(low=0,high=H-self.PatchSize-1),np.random.randint(low=0,high=W-self.PatchSize-1)
+	def FetchImageTraining(self,key,patch=True):
+		"""
+		In this method if the patch is true then we return multiple patches of the same image
+		else we return just one patch of size self.PatchSize
+		"""
+		
+		image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
+		
+		shape=image.shape
+		H,W=shape[0],shape[1]
+		
+		if(patch==True):
+			h,w=np.random.randint(low=0,high=H-self.PatchSize-1,size=self.BatchSize),np.random.randint(low=0,high=W-self.PatchSize-1,size=self.BatchSize)
+			image = np.array([image[h[i]:h[i]+self.PatchSize,w[i]:w[i]+self.PatchSize,:] for i in range(self.BatchSize)])
 
-			if(patch==True):
-				image = np.array([image[h[i]:h[i]+self.PatchSize,w[i]:w[i]+self.PatchSize,:] for i in range(self.BatchSize)])
-			else:
-				image = np.expand_dims(image,axis=0)
-			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
-			
-			if training:
-				GT = rawpy.imread(self.TrainDict[key]["Target"])
-			else:
-				GT = rawpy.imread(self.ValidDict[key]["Target"])
+			GT = rawpy.imread(self.TrainDict[key]["Target"])
 			GT = GT.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
 			GT = np.float32(np.array(GT) / float(65535.0))
-			if(patch==True):
-				GT = np.array([GT[2*h[i]:2*h[i]+2*self.PatchSize,2*w[i]:2*w[i]+2*self.PatchSize,:] for i in range(self.BatchSize)])
-			else:
-				GT = np.expand_dims(GT,axis=0)
+			GT = np.array([GT[2*h[i]:2*h[i]+2*self.PatchSize,2*w[i]:2*w[i]+2*self.PatchSize,:] for i in range(self.BatchSize)])
 			return image,GT
+		else:
+			h,w=np.random.randint(low=0,high=H-self.PatchSize-1),np.random.randint(low=0,high=W-self.PatchSize-1)
+			image = np.expand_dims(image,axis=0)
+			GT = rawpy.imread(self.TrainDict[key]["Target"])
+			GT = GT.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
+			GT = np.float32(np.array(GT) / float(65535.0))
+
+			GT = np.expand_dims(GT,axis=0)
+			return image,GT
+
+
+
+	def FetchImageExecute(self,key):
+		"""
+		We return the maximum image patch of size (2^k,2^j,3) where k,j are integers > 4
+		This is done due to upsample dimension mismatch in Generator nnetwork
+		"""
+		
+		image = np.array(self.pack_raw(rawpy.imread(key))*float(self.ValidDict[key]["Exposure"]))
+		
+		shape=image.shape
+		H,W=int(2**int(math.log(shape[0],2))),int(2**int(math.log(shape[1],2)))
+		
+		image = np.expand_dims(image[0:H,0:W,:],axis=0)
+		
+		GT = rawpy.imread(self.ValidDict[key]["Target"])
+		GT = GT.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
+		GT = np.float32(np.array(GT) / float(65535.0))
+		GT = np.expand_dims(GT[0:2*H,0:2*W,:],axis=0)
+		return image,GT		
 
 	def show_images(self,im,brightimage):
 		im = np.clip(im[0]*255,0,255).astype('uint8')
@@ -212,26 +234,35 @@ class DarkGAN:
 		counter=0
 		keys = self.TrainDict.keys()
 		batch_replay = True
-		replay_image,replay_brightimage = self.FetchImage(keys[-1],patch=True)
 		self.init_plots()
 		while True:
-			mean_gen_loss, mean_disc_loss, mean_abs_loss, mean_valid_abs_loss = 0.0,0.0,0.0,0.0
+			
 			counter+=1
 			samples=0
+			mean_gen_loss, mean_disc_loss, mean_abs_loss=0,0,0
 			for key in keys:
 				# Fetch batch_size no. of patches from each image
 				samples+=1
 				print("Epoch "+str(counter)+", Sample "+str(samples))
-				image,brightimage=self.FetchImage(key,patch=True)
+				image,brightimage=self.FetchImageTraining(key,patch=True)
 
 				FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
 				RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
 				
-				Discriminator_feed_dict={self.TargetImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels}
 
+				"""
+				The training op of Discriminator follows,the generated images and real target image for given
+				short exposure images are fed to thhe computation graph
+				"""
+				Discriminator_feed_dict={self.TargetImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels}
 
 				_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
 				print("Discriminator cost",str(DiscCost))
+
+				"""
+				The training op of Generator follows,the generated images and real target image for given
+				short exposure images are fed to thhe computation graph
+				"""
 
 				GeneratorFeedDict={self.GeneratorLabels:RealLabels, self.GeneratorInput:image, self.TargetImagePlaceholder:brightimage}
 				_,GenCost,grad=self.Session.run([self.GeneratorOptimizer,self.GeneratorLoss,self.GeneratorGradients],feed_dict=GeneratorFeedDict)
@@ -240,43 +271,63 @@ class DarkGAN:
 				absloss,im=self.Session.run([self.GeneratorABS,self.GeneratedImage],feed_dict={self.TargetImagePlaceholder:brightimage,self.GeneratorInput:image})
 				print("ABS loss",absloss)
 
-				if(batch_replay==True):
-					Discriminator_feed_dict={self.TargetImagePlaceholder : replay_brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:replay_image ,self.DiscriminatorLabelsFake:FakeLabels}
-					print("Batch replayed")
-					_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
-					print("Discriminator cost",str(DiscCost))
-					replay_image, replay_brightimage = image, brightimage
-
+				"""
+				Batch replay plays the train op of discriminator againn and helps preventing GAN collapse: REF soumith gan hacks
+				"""
+				if(self.BatchReplayBool==True):
+					self.BatchReplay(key)
+					
 				mean_gen_loss += GenCost
 				mean_disc_loss += DiscCost
 				mean_abs_loss += absloss
-				self.show_images(im, brightimage)
-
-			valid_keys = self.ValidDict.keys()
-			samples=0
-			for key in valid_keys:
-				samples+=1
-				print("Validation sample "+str(samples))
-				image,brightimage=self.FetchImage(key,patch=True,training=False)
-				im,valid_abs_loss=self.Session.run([self.GeneratedImage,self.GeneratorABS],feed_dict={self.GeneratorInput:image,self.TargetImagePlaceholder:brightimage})
-				mean_valid_abs_loss += valid_abs_loss
-				filename = "./Sony/results/"+key[13:-4]+"result.png"
-				misc.imsave(filename,(np.clip(im[0]*255,0,255)).astype('uint8'))
-				filename = "./Sony/results/"+key[13:-4]+".png"
-				misc.imsave(filename,(np.clip(brightimage[0]*255,0,255)).astype('uint8'))
-
-			N = float(len(keys))
-			print("Validation!!!!!!!")
-			print("Validation Absolute Loss "+str(mean_valid_abs_loss/N))
-			self.plots(mean_gen_loss/N,	mean_disc_loss/N, mean_abs_loss/N, mean_valid_abs_loss/N)
 			
+			valid_abs_loss=self.Validation()
+			self.plots(mean_gen_loss/samples,mean_disc_loss/samples, mean_abs_loss/samples, valid_abs_loss)	
 			save_path = self.saver.save(self.Session,self.save_path+"model"+str(counter)+".ckpt")
 
+	def BatchReplay(self,key):
+		image,brightimage=self.FetchImageTraining(key,patch=True)
+		FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
+		RealLabels=np.expand_dims(np.zeros(self.BatchSize),axis=1)
 
+
+		Discriminator_feed_dict={self.TargetImagePlaceholder : brightimage ,self.DiscriminatorLabelsReal:RealLabels ,self.GeneratorInput:image ,self.DiscriminatorLabelsFake:FakeLabels}
+		
+		_,DiscCost=self.Session.run([self.DiscriminatorOptimizer,self.DiscriminatorLoss],feed_dict=Discriminator_feed_dict)
+		print("Discriminator cost",str(DiscCost))
+		
+		
+	
+	def Validation(self):
+		valid_keys = self.ValidDict.keys()
+		mean_valid_abs_loss = 0.0
+		
+		for key in valid_keys:
+			print("Validating on "+key)
+
+			
+			image,brightimage=self.FetchImageExecute(key)
+			im,valid_abs_loss=self.Session.run([self.GeneratedImage,self.GeneratorABS],feed_dict={self.GeneratorInput:image,self.TargetImagePlaceholder:brightimage})
+			
+			mean_valid_abs_loss += valid_abs_loss
+			
+			filename = key.replace("short","ResultPatch").replace(".ARW",".png")
+			misc.imsave(filename,(np.clip(im[0]*255,0,255)).astype('uint8'))
+			filename = key.replace("short","GTPatch").replace(".ARW",".png")
+			misc.imsave(filename,(np.clip(brightimage[0]*255,0,255)).astype('uint8'))
+
+		samples=float(len(keys))
+		print("Validation done!!!!!!!")
+		print("Validation Absolute Loss "+str(mean_valid_abs_loss/samples))
+		return  mean_valid_abs_loss/samples
+		
+			
+
+				
 				
 
 dgan=DarkGAN()
-dgan.train()
+dgan.Validation()
 
 
 
