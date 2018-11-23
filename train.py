@@ -143,12 +143,14 @@ class DarkGAN:
 		return out
 
 
-	def FetchImage(self,key,patch=True):
+	def FetchImage(self,key,patch=True,training=True):
 			
-			image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
+			if training:
+				image = np.array(self.pack_raw(rawpy.imread(key))*float(self.TrainDict[key]["Exposure"]))
+			else:
+				image = np.array(self.pack_raw(rawpy.imread(key))*float(self.ValidDict[key]["Exposure"]))
 			shape=image.shape
 			H,W=shape[0],shape[1]
-			print("H",H,"  W",W)
 			if(patch==True):
 				h,w=np.random.randint(low=0,high=H-self.PatchSize-1,size=self.BatchSize),np.random.randint(low=0,high=W-self.PatchSize-1,size=self.BatchSize)
 			else:
@@ -158,22 +160,25 @@ class DarkGAN:
 				image = np.array([image[h[i]:h[i]+self.PatchSize,w[i]:w[i]+self.PatchSize,:] for i in range(self.BatchSize)])
 			else:
 				image = np.expand_dims(image,axis=0)
-			print(np.shape(image))
 			#image = np.multiply(exps,image,axis=0)# * self.Exposure[self.Trainlist[i]]
 			
-			GT = rawpy.imread(self.TrainDict[key]["Target"])
+			if training:
+				GT = rawpy.imread(self.TrainDict[key]["Target"])
+			else:
+				GT = rawpy.imread(self.ValidDict[key]["Target"])
 			GT = GT.postprocess(use_camera_wb=True, half_size=False, no_auto_bright=True, output_bps=16)
 			GT = np.float32(np.array(GT) / float(65535.0))
 			if(patch==True):
 				GT = np.array([GT[2*h[i]:2*h[i]+2*self.PatchSize,2*w[i]:2*w[i]+2*self.PatchSize,:] for i in range(self.BatchSize)])
 			else:
 				GT = np.expand_dims(GT,axis=0)
-			print(np.shape(GT))
 			return image,GT
 
-	def show_images(self,im,brightimages):
-		self.ax2[0].imshow((im[0]*255).astype('uint8'))
-		self.ax2[1].imshow((brightimage[0]*255).astype('uint8'))
+	def show_images(self,im,brightimage):
+		im = np.clip(im[0]*255,0,255).astype('uint8')
+		self.ax2[0].imshow(im)
+		brightimage = np.clip(brightimage[0]*255,0,255).astype('uint8')
+		self.ax2[1].imshow(brightimage)
 		plt.draw()
 		plt.pause(0.0001)
 	
@@ -182,11 +187,11 @@ class DarkGAN:
 		self.fig1,self.ax1 = plt.subplots(1,3,sharex=True,squeeze=True)
 		self.fig2,self.ax2 = plt.subplots(1,2,squeeze=True)
 
-	def plots(self, mean_gen_loss, mean_disc_loss, mean_abs_loss, valid_abs_loss):
+	def plots(self, mean_gen_loss, mean_disc_loss, mean_abs_loss, mean_valid_abs_loss):
 		self.gen_loss_list.append(mean_gen_loss)
 		self.disc_loss_list.append(mean_disc_loss)
 		self.abs_loss_list.append(mean_abs_loss)
-		self.valid_abs_loss_list.append(valid_abs_loss)
+		self.valid_abs_loss_list.append(mean_valid_abs_loss)
 		counter = len(self.gen_loss_list)
 		self.ax1[0].set_xlabel('Epoch')
 		self.ax1[0].set_title('Generator Loss')
@@ -194,12 +199,13 @@ class DarkGAN:
 		self.ax1[1].set_title('Discriminator Loss')
 		self.ax1[1].plot(np.arange(counter)+1,self.disc_loss_list)
 		self.ax1[2].set_title('L1 Loss')
+		self.ax1[2].set_color_cycle(['red', 'green'])
 		self.ax1[2].plot(np.arange(counter)+1,self.abs_loss_list)
 		self.ax1[2].plot(np.arange(counter)+1,self.valid_abs_loss_list)
 		self.ax1[2].legend(['Training','Validation'])
 		plt.tight_layout()
 		plt.draw()
-		fig1.savefig('losses.png')			
+		self.fig1.savefig('losses.png')			
 		plt.pause(0.0001)
 
 	def train(self):
@@ -209,10 +215,13 @@ class DarkGAN:
 		replay_image,replay_brightimage = self.FetchImage(keys[-1],patch=True)
 		self.init_plots()
 		while True:
-			mean_gen_loss, mean_disc_loss, mean_abs_loss = 0.0,0.0,0.0
+			mean_gen_loss, mean_disc_loss, mean_abs_loss, mean_valid_abs_loss = 0.0,0.0,0.0,0.0
 			counter+=1
+			samples=0
 			for key in keys:
 				# Fetch batch_size no. of patches from each image
+				samples+=1
+				print("Epoch "+str(counter)+", Sample "+str(samples))
 				image,brightimage=self.FetchImage(key,patch=True)
 
 				FakeLabels=np.expand_dims(np.ones(self.BatchSize),axis=1)
@@ -244,15 +253,22 @@ class DarkGAN:
 				self.show_images(im, brightimage)
 
 			valid_keys = self.ValidDict.keys()
+			samples=0
 			for key in valid_keys:
-				image,_=self.FetchImage(key,patch=True)
+				samples+=1
+				print("Validation sample "+str(samples))
+				image,brightimage=self.FetchImage(key,patch=True,training=False)
 				im,valid_abs_loss=self.Session.run([self.GeneratedImage,self.GeneratorABS],feed_dict={self.GeneratorInput:image,self.TargetImagePlaceholder:brightimage})
-				print("Validation!!!!!!!")
-				print("Validation Absolute Loss "+str(valid_abs_loss))
-				misc.imsave("./Sony/results/"+key[13:-4]+"result.png",im)
+				mean_valid_abs_loss += valid_abs_loss
+				filename = "./Sony/results/"+key[13:-4]+"result.png"
+				misc.imsave(filename,(np.clip(im[0]*255,0,255)).astype('uint8'))
+				filename = "./Sony/results/"+key[13:-4]+".png"
+				misc.imsave(filename,(np.clip(brightimage[0]*255,0,255)).astype('uint8'))
 
 			N = float(len(keys))
-			self.plots(mean_gen_loss/N,	mean_disc_loss/N, mean_abs_loss/N, valid_abs_loss)
+			print("Validation!!!!!!!")
+			print("Validation Absolute Loss "+str(mean_valid_abs_loss/N))
+			self.plots(mean_gen_loss/N,	mean_disc_loss/N, mean_abs_loss/N, mean_valid_abs_loss/N)
 			
 			save_path = self.saver.save(self.Session,self.save_path+"model"+str(counter)+".ckpt")
 
