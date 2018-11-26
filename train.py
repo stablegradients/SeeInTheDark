@@ -7,6 +7,7 @@ import json
 import matplotlib.pyplot as plt
 from scipy import misc
 import math
+from argparse import ArgumentParser
 
 class DarkGAN:
 	"""docstring for ClassName"""
@@ -327,7 +328,20 @@ class DarkGAN:
 				
 
 dgan=DarkGAN()
-dgan.Validation()
+
+
+parser = ArgumentParser()
+parser.add_argument("-m", "--mode", dest="action",default='train')
+
+args = parser.parse_args()
+
+
+if(args.action=='train'):
+	dgan.train()
+
+elif(args.action=='validate'):
+	dgan.Validation()
+
 
 
 
