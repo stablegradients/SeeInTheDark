@@ -41,9 +41,7 @@ foo@bar:~$pip install -r requirements.txt
 
   ```json
   {
-    "./TrainImages/10193_05_0.04s.ARW": {
-    																			"Target": "./Sony/long/10193_00_10s.ARW", 																									"Exposure": 250.0
-                                        }
+    "./TrainImages/10193_05_0.04s.ARW": {"Target": "./Sony/long/10193_00_10s.ARW","Exposure": 250.0}
   }
   ```
 
