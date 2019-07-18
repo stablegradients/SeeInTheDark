@@ -77,11 +77,11 @@ foo@bar:~$python execute.py -m test -d <test json file > -c <checkpoint to use>
 
 #Results 
 
-| Input                                                   | Output                                                   | Ground Truth                                         |
-| ------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------- |
-| ![](./Assets/dark2.png ){:height="300px" width="400px"} | ![](./Assets/Output1.png){:height="300px" width="400px"} | ![](./Assets/GT1.png)                                |
-| ![](./Assets/dark2.png){:height="300px" width="400px"}  | ![](./Assets/Output2.png)                                | ![](./Assets/GT2.png){:height="300px" width="400px"} |
-| ![](./Assets/dark3.png){:height="300px" width="400px"}  | ![](./Assets/Output3.png){:height="300px" width="400px"} | ![](./Assets/GT3.png){:height="300px" width="400px"} |
-| ![](./Assets/dark4.png){:height="300px" width="400px"}  | ![](./Assets/Output4.png){:height="300px" width="400px"} | ![](./Assets/GT4.png){:height="300px" width="400px"} |
-| ![](./Assets/dark5.png){:height="300px" width="400px"}  | ![](./Assets/Output5.png){:height="300px" width="400px"} | ![](./Assets/GT5.png){:height="300px" width="400px"} |
+| Input                    | Output                    | Ground Truth          |
+| ------------------------ | ------------------------- | --------------------- |
+| ![](./Assets/dark2.png ) | ![](./Assets/Output1.png) | ![](./Assets/GT1.png) |
+| ![](./Assets/dark2.png)  | ![](./Assets/Output2.png) | ![](./Assets/GT2.png) |
+| ![](./Assets/dark3.png)  | ![](./Assets/Output3.png) | ![](./Assets/GT3.png) |
+| ![](./Assets/dark4.png)  | ![](./Assets/Output4.png) | ![](./Assets/GT4.png) |
+| ![](./Assets/dark5.png)  | ![](./Assets/Output5.png) | ![](./Assets/GT5.png) |
 
