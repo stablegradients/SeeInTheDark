@@ -59,7 +59,7 @@ foo@bar:~$pip install -r requirements.txt
 
 ###Execute
 
-To train the neural net run the following command. The loss plots for both validation and training shall be stored in the working directory and the checkpoint is stored in ./checkpoinnt folder .Feel free to use our [checkpoint](www.checkpoint.com)
+To train the neural net run the following command. The loss plots for both validation and training shall be stored in the working directory and the checkpoint is stored in ./checkpoinnt folder .Feel free to use our [checkpoint](https://drive.google.com/open?id=1_KsBx23JT7pvYzZc5dcONbuo2nWfV_7k)
 
 ```shell
 foo@bar:~$python execute.py -m train -d <training json file> -c <checkpoint to continue from>
