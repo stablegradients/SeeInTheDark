@@ -16,9 +16,9 @@ The model is basically a conditional GAN with the generator trained on the adver
 
 
 
-## Setup,train and  test
+##Setup,train and  test
 
-### Pre-Requisites
+###Pre-Requisites
 
 First clone this repository using the following command and enter the repository.
 
@@ -33,7 +33,7 @@ Once your are done install the prerequisites using the following command...
 foo@bar:~$pip install -r requirements.txt
 ```
 
-### Dataset preperation
+###Dataset preperation
 
 - First move all your Training images and their ground truths into ./TrainInputs and the test images to the ./TestInputs directory in your current working directory. Make sure that all these images are in .ARW  format. 
 
@@ -41,7 +41,9 @@ foo@bar:~$pip install -r requirements.txt
 
   ```json
   {
-    "./TrainImages/10193_05_0.04s.ARW": {"Target": "./Sony/long/10193_00_10s.ARW","Exposure": 250.0}
+    "./TrainImages/10193_05_0.04s.ARW": {
+    																			"Target": "./Sony/long/10193_00_10s.ARW", 																									"Exposure": 250.0
+                                        }
   }
   ```
 
@@ -55,9 +57,9 @@ foo@bar:~$pip install -r requirements.txt
 }
 ```
 
-### Execute
+###Execute
 
-To train the neural net run the following command. The loss plots for both validation and training shall be stored in the working directory and the checkpoint is stored in ./checkpoinnt folder. Feel free to use our [checkpoint](www.checkpoint.com)
+To train the neural net run the following command. The loss plots for both validation and training shall be stored in the working directory and the checkpoint is stored in ./checkpoinnt folder .Feel free to use our [checkpoint](www.checkpoint.com)
 
 ```shell
 foo@bar:~$python execute.py -m train -d <training json file> -c <checkpoint to continue from>
@@ -73,7 +75,7 @@ foo@bar:~$python execute.py -m test -d <test json file > -c <checkpoint to use>
 
 
 
-# Results 
+#Results 
 
 | Input                    | Output                    | Ground Truth          |
 | ------------------------ | ------------------------- | --------------------- |
