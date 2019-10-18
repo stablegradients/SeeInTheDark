@@ -49,11 +49,11 @@ foo@bar:~$pip install -r requirements.txt
 
 - Create a dictionary consisting of the input image name and their target exposure and save it as a json file in the wroking directory. For eg:
 
-```json
-{
-  "./TestInputs/short/10193_05_0.04s.ARW":250
-}
-```
+  ```json
+  {
+    "./TestInputs/short/10193_05_0.04s.ARW":250
+  }
+  ```
 
 ### Execute
 
