@@ -65,7 +65,7 @@ foo@bar:~$python execute.py -m train -d <training json file> -c <checkpoint to c
 
 To test it on some images run the following..gi
 
-```shell
+```bash
 foo@bar:~$python execute.py -m test -d <test json file > -c <checkpoint to use>
 ```
 
